@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scaletestapp
+  labels:
+    app: scaletestapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scaletestapp
+  template:
+    metadata:
+      labels:
+        app: scaletestapp
+    spec:
+      containers:
+        - name: scaletestapp
+          image: ghcr.io/yandex-practicum/scaletestapp:latest
+          ports:
+            - name: http
+              containerPort: 8080
+          # Важно для HPA по памяти: Utilization считается от requests.memory
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "30Mi"
+            limits:
+              memory: "30Mi"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3

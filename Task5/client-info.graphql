@@ -1,0 +1,74 @@
+"""
+client-info GraphQL schema (Task5)
+Equivalent to REST v1:
+- GET /clients/{id}
+- GET /clients/{id}/documents
+- GET /clients/{id}/relatives
+
+Key idea:
+Consumers can fetch only required fields in a single request:
+client(id) { ... documents { ... } relatives { ... } }
+"""
+
+schema {
+  query: Query
+}
+
+"""
+ISO-8601 date (e.g. 2026-03-03).
+If your implementation needs date-time, rename to DateTime.
+"""
+scalar Date
+
+type Query {
+  """
+  Canonical query: equivalent to GET /clients/{id}.
+  Use nested fields (documents/relatives/...) to avoid multiple calls.
+  """
+  client(id: ID!): Client
+
+  """
+  Shortcut query: equivalent to GET /clients/{id}/documents.
+  Can be kept for compatibility with legacy consumers.
+  """
+  clientDocuments(clientId: ID!): [Document!]!
+
+  """
+  Shortcut query: equivalent to GET /clients/{id}/relatives.
+  Can be kept for compatibility with legacy consumers.
+  """
+  clientRelatives(clientId: ID!): [Relative!]!
+}
+
+type Client {
+  id: ID!
+  name: String
+  age: Int
+
+  """
+  Client documents. Always returns a list (possibly empty).
+  Equivalent to GET /clients/{id}/documents.
+  """
+  documents: [Document!]!
+
+  """
+  Client relatives. Always returns a list (possibly empty).
+  Equivalent to GET /clients/{id}/relatives.
+  """
+  relatives: [Relative!]!
+}
+
+type Document {
+  id: ID!
+  type: String
+  number: String
+  issueDate: Date
+  expiryDate: Date
+}
+
+type Relative {
+  id: ID!
+  relationType: String
+  name: String
+  age: Int
+}

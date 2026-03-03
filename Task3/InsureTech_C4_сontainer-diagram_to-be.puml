@@ -1,0 +1,76 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title InsureTech — C4 Container (to-be, Event-Driven)
+
+' --- People / External systems ---
+Person(client, "Клиент", "B2C")
+System_Ext(payment, "Платёжный сервис", "External")
+System_Ext(partners, "Системы партнёров", "B2B API consumers")
+System_Ext(insurers, "Системы страховых компаний", "10 компаний, REST/SOAP/GraphQL")
+
+' --- System boundary ---
+System_Boundary(insuretech, "InsureTech Prod") {
+
+  Container(web, "InsureTech Web", "JavaScript, React", "Веб-приложение для B2C клиентов")
+
+  Container(core, "core-app", "Kotlin, SpringBoot","Оформление/управление страховками. Локальная реплика каталога. Публикует policy events через outbox")
+  ContainerDb(coredb, "core-db", "PostgreSQL","Заявки/страховки + локальная реплика продуктов/тарифов")
+  ContainerDb(coreOutbox, "core-outbox", "PostgreSQL table","Transactional Outbox: policy.*")
+
+  Container(clientinfo, "client-info", "Kotlin, SpringBoot","Учёт клиентских данных")
+  ContainerDb(clientdb, "client-info-db", "PostgreSQL", "ФИО/контакты/документы")
+
+  Container(agg, "ins-product-aggregator", "Kotlin, SpringBoot","Интеграция со страховыми. Формирует версии каталога. Публикует catalog events через outbox")
+  ContainerDb(aggdb, "aggregator-db", "PostgreSQL", "Версии каталога/тарифов + локальные данные")
+  ContainerDb(aggOutbox, "aggregator-outbox", "PostgreSQL table","Transactional Outbox: product_catalog.*")
+
+  Container(settle, "ins-comp-settlement", "Kotlin, SpringBoot","Взаиморасчёты со страховыми. Потребляет policy.* и product_catalog.*")
+  ContainerDb(settledb, "ins-comp-settlement-db", "PostgreSQL","Оформленные страховки для реестров/взаиморасчётов")
+
+  Container(kafka, "Event Streaming Platform", "Kafka / Managed Kafka","Топики: product_catalog.snapshot, product_catalog.changed, policy.issued, DLQ/retry")
+}
+
+' --- B2C / B2B entrypoints (как в исходнике) ---
+Rel(client, web, "Использует", "HTTPS")
+Rel(web, core, "Получение тарифов/оформление/кабинет", "REST")
+Rel(web, payment, "Оплата страховки", "HTTP redirect / API")
+Rel(core, payment, "Оплата страховки", "HTTP redirect / API")
+Rel(partners, core, "Оформление страховок", "REST (B2B API)")
+
+' --- Client info remains REST (как as-is) ---
+Rel(core, clientinfo, "Получение/сохранение данных о клиенте", "REST")
+Rel(clientinfo, clientdb, "Работа с данными", "SQL")
+
+' --- Databases core/settlement ---
+Rel(core, coredb, "Работа с данными", "SQL")
+Rel(agg, aggdb, "Работа с данными", "SQL")
+Rel(settle, settledb, "Работа с данными", "SQL")
+
+' --- External insurers fan-out stays inside aggregator ---
+Rel(agg, insurers, "Запрос тарифов/продуктов (fan-out) + timeout/circuit breaker", "REST/SOAP/GraphQL")
+
+' --- Event-driven changes ---
+' 1) Каталог продуктов/тарифов: aggregator -> Kafka -> core + settlement
+Rel(aggdb, aggOutbox, "Запись события в outbox в одной транзакции", "SQL")
+Rel(aggOutbox, kafka, "Публикация product_catalog.* (at-least-once)", "Producer")
+Rel(kafka, core, "product_catalog.* (обновление локальной реплики)", "Consumer group")
+Rel(kafka, settle, "product_catalog.* (актуализация расчётов)", "Consumer group")
+
+' 2) Оформленные страховки: core -> Kafka -> settlement (вместо ночного REST core->settlement)
+Rel(coredb, coreOutbox, "Запись события в outbox в одной транзакции", "SQL")
+Rel(coreOutbox, kafka, "Публикация policy.* (policy.issued и др.)", "Producer")
+Rel(kafka, settle, "policy.* (для реестров/взаиморасчётов)", "Consumer group")
+
+' --- Notes
+note top of kafka
+Event-Driven (to-be)
+- Доставка: at-least-once
+- Паблиш через Transactional Outbox
+- Консьюмеры: idempotent (dedupe по event_id)
+- Retry + DLQ для “ядовитых” событий
+- Корреляция: trace_id/correlation_id, catalog_version
+end note
+
+
+@enduml

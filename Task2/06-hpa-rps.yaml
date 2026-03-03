@@ -2,6 +2,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: scaletestapp-rps
+  namespace: task2
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -16,4 +17,4 @@ spec:
           name: http_requests_per_second
         target:
           type: AverageValue
-          averageValue: "2"
+          averageValue: "0.5"

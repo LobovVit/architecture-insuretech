@@ -1,6 +1,6 @@
 # Task2 — Динамическое масштабирование контейнеров (Minikube) + Kustomize
 
-В этой версии все ресурсы приложения применяются одной командой через **kustomize**.
+Все ресурсы приложения применяются одной командой через **kustomize**.
 Namespace для приложения: `task2`.
 
 > Важно: объекты мониторинга (Prometheus/Adapter) ставятся через Helm в `monitoring` namespace,
@@ -36,15 +36,13 @@ minikube service scaletestapp -n task2 --url
 ### 2) Нагрузка (Locust)
 ```bash
 pip install locust
-locust
+python -m locust  
 ```
 UI: http://localhost:8089
 
-В поле **Host** вставь URL из команды `minikube service ... --url`.
+В поле **Host** - URL из команды `minikube service ... --url`.  
 
-Скриншоты/логи для PR:
-- `kubectl -n task2 get hpa scaletestapp-memory`
-- `minikube dashboard` (рост replicas у deployment `scaletestapp`)
+![Screen](Task2_Part1.png)
 
 ---
 
@@ -75,9 +73,9 @@ kubectl -n monitoring port-forward svc/monitoring-kube-prometheus-prometheus 909
 ```
 http://localhost:9090
 
-Скриншоты:
-- Status → Targets (scaletestapp UP)
-- Graph: `http_requests_total`
+![Screen](Task2_Part2_1.png)
+![Screen](Task2_Part2_2.png)
+![Screen](Task2_Part2_3.png)
 
 ### 3) Установить Prometheus Adapter с правилами (custom.metrics.k8s.io)
 ```bash
@@ -93,7 +91,7 @@ kubectl get --raw "/apis/custom.metrics.k8s.io/v1beta1/namespaces/task2/pods/*/h
 
 ### 4) HPA по RPS
 ```bash
-kubectl apply -f Task2/06-hpa-rps.yaml
+kubectl -n task2 apply -f Task2/06-hpa-rps.yaml
 kubectl -n task2 get hpa -w
 ```
 
@@ -103,6 +101,6 @@ kubectl -n task2 get deploy scaletestapp -w
 kubectl -n task2 get hpa scaletestapp-rps -w
 ```
 
-Скриншоты/логи:
-- `kubectl -n task2 get hpa scaletestapp-rps`
-- `minikube dashboard` (рост replicas)
+![Screen](Task2_Part2_4.png)
+![Screen](Task2_Part2_5.png)
+![Screen](Task2_Part2_6.png)
